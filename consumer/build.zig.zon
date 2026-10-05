@@ -1,0 +1,22 @@
+.{
+    .name = .lua_consumer,
+    .version = "0.1.0",
+    // This package's own identity, the value the toolchain derived for the
+    // name above. It is separate from the library's fingerprint because a
+    // consumer is a different package with a different name, and changing it
+    // has security and trust implications.
+    .fingerprint = 0x5f4f10f02599c22e,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        // A relative path, not a registry or archive URL. The consumer is the
+        // proof that `dep.module("lua")` works from outside the package that
+        // defines it; resolving that through the network would make the proof
+        // depend on a published state of the world instead.
+        .lua = .{ .path = ".." },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

@@ -1,0 +1,60 @@
+# Upstream's own ignore conventions, kept verbatim. Nothing above this line is
+# ours, and nothing below it removes an upstream entry to make room for a
+# fork-owned one.
+#
+# Lua's release tarball ships no `.gitignore`; the entries in the first block
+# are upstream's *build system* outputs rather than upstream's ignore file, and
+# they are listed so a `make`-produced object or archive cannot be committed
+# into a tree that is built with Zig instead (`src/Makefile:55-67` names
+# `ALL_O` and `ALL_T`). `src/Makefile:57` is `$(AR) rcu`, so its archive is
+# `liblua.a`, and `src/Makefile:132-135` additionally names `lua55.dll` and
+# `.exe` for `mingw`.
+*.o
+*.a
+*.so
+*.obj
+*.lib
+*.exp
+*.pdb
+*.dll
+*.exe
+*.manifest
+*.dmp
+*.swp
+
+# zig build artefacts (fork addition).
+#
+# These are directories rather than single files because a normal `zig build`
+# creates them, and a normal `zig build` must not dirty the tree or leak into
+# the package published from it. None of them is named in build.zig.zon
+# `.paths`, so an ignored directory can never become part of the package.
+.zig-cache/
+zig-out/
+# Zig 0.16 fetches dependencies into a project-local directory. This package
+# declares no dependencies, so this exists only so that a future one cannot
+# commit a fetched tree.
+zig-pkg/
+
+# The consumer package builds inside this repository and has its own cache and
+# output tree. It is ignored here as well as in consumer/.gitignore so a build
+# run from the repository root cannot commit it by accident.
+consumer/.zig-cache/
+consumer/zig-out/
+consumer/zig-pkg/
+
+# Nix and devenv working-tree artefacts (fork addition).
+#
+# `nix build` writes `result` (and `result-1`, `result-2`, ... on a rebuild)
+# into the directory that asked for it, and `devenv` writes its resolved
+# inputs and its state beside the project. None of them is named in
+# build.zig.zon `.paths`, so an ignored path can never become part of the
+# package either. `devenv.lock` and `flake.lock` are deliberately *not* here:
+# they are real inputs, they belong to the driver, and ignoring them would be
+# the wrong way to keep a build out of a commit.
+result
+result-*
+.devenv/
+.devenv.flake.nix
+.devenv.flakes/
+devenv.local.nix
+.direnv/
