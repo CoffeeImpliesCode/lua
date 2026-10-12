@@ -17,3 +17,5 @@
 inputs:
   nixpkgs:
     url: "github:cachix/devenv-nixpkgs/c2f38fe7f9e04d9aadd354d380f2bd40531d9737"
+  nixpkgs-unstable:
+    url: github:NixOS/nixpkgs/6510408d147d8c5e6d76043e899e9251756f6a75

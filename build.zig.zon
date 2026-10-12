@@ -16,7 +16,7 @@
     // the shared object's file name cannot describe three different releases.
     .version = "5.5.1",
     .fingerprint = 0xd671372b083c0ad3,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     // Nothing is fetched: the C library is this repository's own source, and the
     // facade, tests, example, consumer and runtime table import only what is
     // compiled here. Lua's own release is the tarball already unpacked into
@@ -25,6 +25,9 @@
     .paths = .{
         "build.zig",
         "build.zig.zon",
+        "port017.zig",
+        "port017_make.zig",
+        "port017_runtimes.zig",
         // The cross-test harness profile for this package. It is a file in the
         // package because it is how this package declares what its
         // cross-platform gate is: `cross-test` discovers it by name from the
@@ -57,6 +60,7 @@
         "consumer/build.zig",
         "consumer/build.zig.zon",
         "consumer/src/main.zig",
+        "consumer/native",
         // Upstream's release note, preserved byte for byte as the record it is,
         // and the licence and provenance records this fork added around it.
         // Lua's own MIT text is not a standalone file - the tarball has no

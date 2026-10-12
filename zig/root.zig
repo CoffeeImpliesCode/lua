@@ -831,13 +831,13 @@ pub const State = struct {
     /// What kind of value is at `index`, `Type.none` for an index that does not
     /// exist.
     pub fn typeOf(self: *const State, index: Index) Type {
-        return @enumFromInt(c.lua_type(self.handle(), index));
+        return @fromBackingInt(@intCast(c.lua_type(self.handle(), index)));
     }
 
     /// Upstream's own name for a type, such as `"string"` or `"nil"`
     /// (`src/lua.h:198`). Null for a type code no version of Lua defines.
     pub fn typeNameOf(self: *State, type_code: Type) ?[:0]const u8 {
-        const text = c.lua_typename(self.handle(), @intFromEnum(type_code));
+        const text = c.lua_typename(self.handle(), @backingInt(type_code));
         if (text == null) return null;
         return std.mem.span(text);
     }
@@ -981,12 +981,12 @@ pub const State = struct {
     /// Compare two values the way the `==`, `<` and `<=` operators do,
     /// metamethods included.
     pub fn compare(self: *const State, a: Index, b: Index, op: CompareOp) bool {
-        return c.lua_compare(self.handle(), a, b, @intFromEnum(op)) != 0;
+        return c.lua_compare(self.handle(), a, b, @backingInt(op)) != 0;
     }
 
     /// Perform one arithmetic or bitwise operation on the values on top.
     pub fn arith(self: *State, op: ArithOp) void {
-        c.lua_arith(self.handle(), @intFromEnum(op));
+        c.lua_arith(self.handle(), @backingInt(op));
     }
 
     /// Concatenate the `n` values on top into one, left to right.
@@ -1293,7 +1293,7 @@ pub const State = struct {
     /// Tune one of the collector's six parameters (`LUA_GCPARAM`,
     /// `src/lua.h:340`, `:347-354`).
     pub fn setGarbageParameter(self: *State, parameter: GarbageParameter, value: c_int) void {
-        _ = callGc(self.handle(), c.LUA_GCPARAM, .{ @intFromEnum(parameter), value });
+        _ = callGc(self.handle(), c.LUA_GCPARAM, .{ @backingInt(parameter), value });
     }
 
     /// Switch to generational collection (`LUA_GCGEN`, `src/lua.h:338`).

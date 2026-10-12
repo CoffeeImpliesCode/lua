@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // See FORK-LICENSE.md for what that identifier covers.
 //
-//! Zig 0.16 build for Lua 5.5.1.
+//! Zig 0.17 build for Lua 5.5.1.
 //!
 //! The library, the auxiliary library and the ten standard libraries are
 //! upstream's own C, byte for byte: the 20 units of `CORE_O` and the 12 units
@@ -1742,11 +1742,10 @@ fn add_target_check(
 /// width and the summary. An argument left behind would be a proof of a
 /// configuration nobody asked for.
 ///
-/// Run when this host can execute the selected target, and install otherwise:
-/// `hostCanExecute` asks exactly what `std.Build.Step.Run` asks of a foreign
-/// binary, so the decision here and the nested run cannot disagree. An executor
-/// counts only when its `-f` switch was given; a target with none installs,
-/// which is compile evidence and never a semantic pass.
+/// Run when this host can execute the selected target, and install otherwise.
+/// `port017_make.zig` asks the external-executor question at make time using
+/// the selected executor switches. A target with no executor installs; that is
+/// compile evidence and never a semantic pass.
 fn runConsumer(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
@@ -1772,10 +1771,9 @@ fn runConsumer(
 
     // `b.graph.zig_exe` is the compiler running this build script, so the
     // nested build is the same toolchain rather than whatever is on PATH.
-    const run = b.addSystemCommand(&.{ b.graph.zig_exe, "build" });
+    const run = @import("port017.zig").consumer(b, target);
     run.setName("consumer package");
     run.setCwd(b.path("consumer"));
-    run.addArg(if (hostCanExecute(b, target)) "run" else "install");
     run.addArg(b.fmt("-Dtarget={s}", .{triple}));
     // The model and its feature set, for the reason the serialization above
     // gives. Without it the nested build would compile the consumer at a
@@ -1818,13 +1816,6 @@ fn runConsumer(
     // stops where the outer build stopped, naming the missing header and the
     // absent `-llua`, instead of proving the bundled graph a second time.
     run.addArg(if (library == .system) b.fmt("-fsys={s}", .{lib_name}) else b.fmt("-fno-sys={s}", .{lib_name}));
-    // Forward the selected executor and its dynamic-linker support.
-    if (b.enable_darling) run.addArg("-fdarling");
-    if (b.enable_qemu) run.addArg("-fqemu");
-    if (b.enable_rosetta) run.addArg("-frosetta");
-    if (b.enable_wasmtime) run.addArg("-fwasmtime");
-    if (b.enable_wine) run.addArg("-fwine");
-    if (b.libc_runtimes_dir) |runtimes| run.addArgs(&.{ "--libc-runtimes", runtimes });
     // The nested build carries this workspace's job count and summary in its own
     // command line. Nothing can append a `-j` to a `Run` step's command, so a
     // nested build left to derive its own width takes `cpu_count - 1`
@@ -1837,93 +1828,14 @@ fn runConsumer(
     run.addArg("-j8");
     run.addArg("--summary");
     run.addArg("all");
-    // A null `path` means "the current directory", and the working directory is
-    // already the consumer package, so the default is right.
-    if (b.cache_root.path) |cache| {
-        run.addArg("--cache-dir");
-        run.addArg(b.fmt("{s}/consumer", .{cache}));
-    }
-    // The global cache is inherited whole rather than subdirectoryed: it is one
-    // shared store of packages and hashes, so a nested build left to resolve
-    // its own would fetch again what this one already holds, and would write
-    // outside the root this workspace approved. Two tokens, as documented at
-    // `lib/compiler/build_runner.zig:1675`, which is also how the compiler emits
-    // it from a build script of its own
-    // (`lib/std/Build/Step/Compile.zig:1478-1479`).
-    if (b.graph.global_cache_root.path) |global_cache| {
-        run.addArg("--global-cache-dir");
-        run.addArg(global_cache);
-    }
-    // The install prefix this invocation resolved, handed on when the caller
-    // named one. A nested `zig build` left to resolve its own installs into
-    // `consumer/zig-out` - a build artefact inside a source package - rather
-    // than into the directory the caller asked for. A relative `--prefix`
-    // would resolve against the working directory set above, `consumer/`, and
-    // not against this build's root, so it is made absolute before it is
-    // handed on. `DESTDIR` needs no forwarding, because the nested build
-    // inherits the environment this one ran with.
-    const default_prefix = b.build_root.join(b.allocator, &.{"zig-out"}) catch @panic("OOM");
-    if (!std.mem.eql(u8, b.install_prefix, default_prefix)) {
-        const prefix = if (std.fs.path.isAbsolute(b.install_prefix))
-            b.install_prefix
-        else
-            b.pathJoin(&.{ b.graph.cache.cwd, b.install_prefix });
-        run.addArg("--prefix");
-        run.addArg(prefix);
-    }
-    // The caller's own arguments, last and behind `--`: `--` is where the build
-    // runner stops parsing options and keeps the rest as `b.args`
-    // (`lib/compiler/build_runner.zig:428-430`), so this `--` has to follow
-    // every argument above - those are this package's own bookkeeping with the
-    // nested build, and only what the caller typed after `--` belongs to the
-    // program. `consumer/src/main.zig:28-44` documents `--provider <path>` as a
-    // command-line input, and this is the only place those words can enter the
-    // nested graph at all. `consumer/build.zig:96` forwards its own `b.args`
-    // to the run step, so what lands here reaches `src/main.zig` on the second
-    // hop unchanged.
-    if (b.args) |args| {
-        run.addArg("--");
-        run.addArgs(args);
-    }
+    // Cache paths, prefix selection and executor flags are resolved by the maker.
+    run.addArg("--");
+    run.addPassthruArgs();
     // The nested build is the step's only observable effect.
     run.has_side_effects = true;
     return run;
 }
 
-/// True when this build can execute `target`'s binaries.
-///
-/// `std.zig.system.getExternalExecutor` (`lib/std/zig/system.zig:42`) is the
-/// predicate `std.Build.Step.Run` applies to the artifact it is about to spawn
-/// (`lib/std/Build/Step/Run.zig:1268`), and `allow_*` carries this build's own
-/// executor switches, so the two cannot disagree. `link_libc` holds in every
-/// mode this package builds; the `.qemu` arm carries `Run`'s own second gate.
-fn hostCanExecute(b: *std.Build, target: std.Build.ResolvedTarget) bool {
-    const host = &b.graph.host.result;
-    const candidate = &target.result;
-    const options: std.zig.system.GetExternalExecutorOptions = .{
-        .allow_darling = b.enable_darling,
-        .allow_qemu = b.enable_qemu,
-        .allow_wasmtime = b.enable_wasmtime,
-        .allow_wine = b.enable_wine,
-        // `consumer/` builds its executable with `b.addExecutable` and no
-        // linkage, so `Run`'s musl half of `need_cross_libc` never holds here.
-        .qemu_fixes_dl = candidate.isGnuLibC() and b.libc_runtimes_dir != null,
-        .link_libc = true,
-    };
-    return switch (std.zig.system.getExternalExecutor(b.graph.io, host, candidate, options)) {
-        .native, .rosetta => true,
-        // Reachable only for an executor the switches above enabled, each of
-        // which `Run` gates on the same switch and nothing else.
-        .wine, .wasmtime, .darling => true,
-        // Not a yes on its own: `Run` fails a cross GNU libc target given no
-        // `--libc-runtimes`, so this step installs it instead. Every other QEMU
-        // case still runs.
-        .qemu => !(candidate.isGnuLibC() and b.libc_runtimes_dir == null),
-        // Same OS and CPU with no dynamic linker to load, or an architecture
-        // and system this build has no enabled executor for.
-        .bad_dl, .bad_os_or_cpu => false,
-    };
-}
 
 /// Writes `lib/pkgconfig/lua.pc` and installs it.
 ///
@@ -2163,7 +2075,7 @@ pub fn build(b: *std.Build) void {
     // conflating the two would make a smoke run depend on the install layout.
     const run_example = b.addRunArtifact(example);
     run_example.has_side_effects = true;
-    if (b.args) |args| run_example.addArgs(args);
+    run_example.addPassthruArgs();
     b.step("smoke", "Run the deterministic example program").dependOn(&run_example.step);
 
     // The test root is `tests.zig`, which names the test blocks; a root that

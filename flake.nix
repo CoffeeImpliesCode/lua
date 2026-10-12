@@ -15,10 +15,10 @@
 # SPDX-License-Identifier: MIT
 
 {
-  description = "Lua 5.5.1, the embeddable scripting language, packaged for Zig 0.16";
+  description = "Lua 5.5.1, the embeddable scripting language, packaged for Zig 0.17";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/c7def046b9a883d46974757852106483d741586f";
+    nixpkgs.url = "github:NixOS/nixpkgs/6510408d147d8c5e6d76043e899e9251756f6a75";
   };
 
   outputs = { self, nixpkgs }:
@@ -43,7 +43,7 @@
         let
           mk = linkage: pkgs.callPackage ./package.nix {
             inherit linkage;
-            zig = pkgs.zig_0_16;
+            zig = pkgs.zig_0_17;
           };
         in
         {
@@ -60,7 +60,7 @@
       # Parity only. The canonical development environment is devenv.nix.
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
-          packages = [ pkgs.zig_0_16 pkgs.gnumake pkgs.pkg-config ];
+          packages = [ pkgs.zig_0_17 pkgs.gnumake pkgs.pkg-config ];
         };
       });
     };

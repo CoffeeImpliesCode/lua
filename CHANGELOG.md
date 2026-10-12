@@ -879,3 +879,35 @@ normalization edits, entry 15 among them; its `source_unchanged: true` speaks
 only to its own run.  No earlier entry's status moved except the sentence in
 entry 15 that said no gate had yet run, which is amended in place above to say
 when it was written rather than what is true today.
+
+## 17. 2026-10-12 — stock Zig 0.17 build-system port
+
+Ported the configure/make boundary without editing
+upstream C or changing the published facade contracts. Runtime arguments use
+`addPassthruArgs`; a host build helper resolves consumer executability, executor
+flags, cache paths and conditional prefix forwarding at make time. Enum backing
+conversions use the 0.17 builtins. Package manifests and Nix entry points select
+0.17.0, with the compiler package set pinned independently of devenv bootstrap.
+The separate consumer uses an in-root `native` symlink to its parent SDK rather
+than an out-of-root manifest path; both package manifests include that link.
+The optional libc runtime directory is resolved through stock Run's protocol
+transport before ordinary argument forwarding, so an unspecified directory is
+not eagerly resolved as a required path.
+Nested consumer builds inherit the resolved global cache through
+`ZIG_GLOBAL_CACHE_DIR`, because stock 0.17's `zig build` does not accept the old
+`--global-cache-dir` CLI flag.
+
+The runtime dispatch generator uses the new `Ast.ParseOptions` contract.
+
+Observed on Linux x86_64 glibc 2.39 with stock Zig 0.17.0:
+`zig build test smoke -Doptimize=Debug|ReleaseSafe` passed all 20 tests in
+each mode. The separate `consumer` gate passed in both modes; Debug also
+passed with an explicitly supplied optional libc runtime directory.
+After `zig build install -Dlinkage=dynamic`, exporting the exact installed
+`LUA_TEST_PROVIDER` and running `zig build test smoke consumer -Druntime=true
+-Dlinkage=dynamic` also passed all 20 tests, smoke and consumer in both modes.
+`tools/check-provenance.sh` passed all upstream byte, file-set and licence checks.
+The zlua module, integration tests and dependency consumer passed for both
+native linkages in Debug and ReleaseSafe. The Lua wasm consumer ran under Node
+in both modes with Emscripten 6.0.9. Earlier cross-target receipts remain historical;
+they were not replayed by this port.

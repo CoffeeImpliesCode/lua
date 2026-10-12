@@ -21,12 +21,13 @@
 #
 # SPDX-License-Identifier: MIT
 
-{ pkgs, ... }:
+{ pkgs, inputs, ... }:
 
 let
   # Kept as a value rather than inlined, so the version assertion below and the
   # package list cannot disagree about which compiler is meant.
-  zig = pkgs.zig_0_16;
+  zigPkgs = import inputs.nixpkgs-unstable { system = pkgs.stdenv.hostPlatform.system; };
+  zig = zigPkgs.zig_0_17;
 
   lua = linkage: pkgs.callPackage ./package.nix {
     inherit linkage;
@@ -123,8 +124,8 @@ in
 
   assertions = [
     {
-      assertion = zig.version == "0.16.0";
-      message = "The Lua SDK requires Zig 0.16.0; nixpkgs resolved zig_0_16 to ${zig.version}";
+      assertion = zig.version == "0.17.0";
+      message = "The Lua SDK requires Zig 0.17.0; nixpkgs resolved zig_0_17 to ${zig.version}";
     }
   ];
 
@@ -193,10 +194,10 @@ in
     };
 
     "sdk:test:release-safe" = {
-      description = "Run the behavioural tests in ReleaseSafe";
+      description = "Run the behavioural tests in safe mode";
       exec = ''
         ${in_sdk}
-        zig build test -Doptimize=ReleaseSafe ${native_flags}
+        zig build test -Doptimize=safe ${native_flags}
       '';
     };
 

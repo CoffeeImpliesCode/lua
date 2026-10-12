@@ -23,6 +23,18 @@ download.
   what came out; every gate not in that table is still
   `PENDING-VERIFICATION`, and the driver owns those results.
 
+This bookmark targets stock Zig **0.17.0**, without changing native sources or
+public facade contracts. Configure-time inputs remain tracked; run arguments,
+executor flags, cache paths and install-prefix forwarding are resolved at make time.
+
+**Current 0.17 proof:** Linux x86_64 glibc 2.39 passed all 20 SDK tests, smoke and
+the separate consumer in Debug and ReleaseSafe, both linked-static and
+runtime-loaded from an explicitly named shared provider. Upstream provenance
+checks passed. zlua integration and its dependency consumer passed both native
+linkages in both modes; the Lua wasm consumer also ran under Node in both modes.
+See CHANGELOG entry 17. All gate tables and cross-target receipts below are
+historical 0.16 results, not a current cross-platform or Nix derivation proof.
+
 ## Native-source deviations
 
 **None.** Every file under `src/` and `doc/`, both upstream `Makefile`s and

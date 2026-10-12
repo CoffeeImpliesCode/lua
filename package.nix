@@ -27,7 +27,7 @@
   # Lua's upstream Makefile builds only an archive, so static is this fork's
   # default and `.shared` is the separate variant.
 , linkage ? "static"
-, optimize ? "ReleaseSafe"
+, optimize ? "safe"
 }:
 
 let

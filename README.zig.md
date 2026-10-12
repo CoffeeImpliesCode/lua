@@ -8,6 +8,12 @@ For provenance, licensing and the build matrix see [`README.md`](README.md);
 for the source-level evidence behind the ABI statements see
 [`FORK-NOTES.md`](FORK-NOTES.md) §4, §7a and §7e.
 
+The current bookmark targets stock Zig 0.17.0 without changing this interface.
+Current 0.17 proof passed all 20 SDK tests, smoke and the separate consumer on
+Linux x86_64 in Debug and ReleaseSafe, both linked-static and explicitly
+runtime-loaded. See CHANGELOG entry 17. Observations below are historical 0.16
+results, not a replay of the cross-platform matrix.
+
 **Status: three configurations observed.** The linked static route, the shared
 delivery and the runtime-loaded route have each been built and run on this
 host. The full **19-test suite and the smoke pass on the linked route and again

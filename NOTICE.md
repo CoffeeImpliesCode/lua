@@ -100,8 +100,9 @@ Every file below was written for this fork. None of it carries an upstream
 copyright, no upstream permission is claimed over it, and it is released under
 the MIT terms recorded in [`FORK-LICENSE.md`](FORK-LICENSE.md):
 
-* `build.zig`, `build.zig.zon`, `.gitignore`, `cross-test.profile.sh`,
-  `.github/workflows/verify.yml`
+* `build.zig`, `build.zig.zon`, `.gitignore`, `cross-test.profile.sh`
+* `port017.zig`, `port017_make.zig` and `port017_runtimes.zig`, the
+  configure/make compatibility helpers
 * `zig/root.zig`, the typed facade, and `zig/translate.h`, the aggregate
   translation header this build runs `translate-c` over
 * `tests.zig`, `smoke.zig`, `consumer/build.zig`, `consumer/build.zig.zon`,
