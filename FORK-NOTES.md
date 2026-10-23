@@ -14,6 +14,7 @@ The release tarball has no upstream test suite. Its `test` target runs `lua -v`.
 - Static delivery is the default. Dynamic delivery adds `liblua.so.55.5.1` with soname `liblua.so.55`. Runtime loading is independent of delivery linkage.
 - The build writes `lib/pkgconfig/lua.pc`, an ELF version map, and a runtime dispatch when runtime loading is enabled. It generates nothing under `src/` or `doc/`.
 - NetBSD and OpenBSD use the target C compiler to preprocess the aggregate header before Aro translates it. Their bundled C headers contain constructs Aro cannot parse directly.
+- Zig 0.17 keeps arguments and cache paths at make time. Nested consumer builds use passthrough arguments and their own cache and install defaults; they run only for native targets.
 
 ## Runtime provider boundary
 
@@ -23,7 +24,7 @@ The loader checks the provider's Lua version and identity and tests an integer r
 
 ## Platform boundaries
 
-- `wasm32-wasi` is refused for every linkage. Upstream's `os.tmpname` implementation requires `L_tmpnam` and `mkstemp`, which this toolchain's WASI libc does not provide.
+- `wasm32-wasi` is refused for every linkage. Upstream's `os.tmpname` implementation requires `L_tmpnam` and `mkstemp`, which Zig 0.17.0's WASI libc does not provide.
 - macCatalyst uses upstream's `LUA_USE_IOS` path. `os.execute` is unavailable there; the other standard-library functions remain available.
 - Darwin avoids `LUA_USE_MACOSX`, which would make readline a link-time dependency. Readline remains optional and is loaded at runtime where configured.
 - Shared delivery requires a dynamic linker. Targets without one do not receive a substituted static archive.

@@ -5,7 +5,7 @@
     // Lua release version from src/lua.h.
     .version = "5.5.1",
     .fingerprint = 0xd671372b083c0ad3,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     // No fetched dependencies.
     .dependencies = .{},
     .paths = .{

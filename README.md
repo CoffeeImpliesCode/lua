@@ -2,7 +2,7 @@
 
 Lua 5.5.1 (released 2026-07-24), packaged as an embeddable Zig SDK.
 It provides the Lua C API, a typed Zig facade, and the `lua`/`luac` tools.
-Minimum Zig version: 0.16.0.
+Minimum Zig version: 0.17.0.
 
 ## Source deviations
 
@@ -27,7 +27,7 @@ The `check` step configures compile-only targets `x86_64-linux-gnu`, `aarch64-li
 | Windows | Uses upstream's `_WIN32` path; shared builds define `LUA_BUILD_AS_DLL` and export `lua_ident` through a module definition file. |
 | Other Unix | POSIX, `dlopen`, and runtime readline lookup. |
 | NetBSD, OpenBSD | The target C compiler preprocesses the aggregate header before Aro. |
-| `wasm32-wasi` | Refused for every linkage: upstream `os.tmpname` requires `mkstemp` and `L_tmpnam`, absent from Zig 0.16.0's WASI libc. |
+| `wasm32-wasi` | Refused for every linkage: upstream `os.tmpname` requires `mkstemp` and `L_tmpnam`, absent from Zig 0.17.0's WASI libc. |
 
 Dynamic delivery requires a target dynamic linker. The build does not substitute a static archive when one is unavailable.
 

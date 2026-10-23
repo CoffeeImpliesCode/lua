@@ -30,7 +30,7 @@
 # `.paths`, so an ignored directory can never become part of the package.
 .zig-cache/
 zig-out/
-# Zig 0.16 fetches dependencies into a project-local directory. This package
+# Zig 0.17.0 fetches dependencies into a project-local directory. This package
 # declares no dependencies, so this exists only so that a future one cannot
 # commit a fetched tree.
 zig-pkg/

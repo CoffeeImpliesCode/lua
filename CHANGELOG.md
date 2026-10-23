@@ -1,8 +1,11 @@
 # Changelog
 
+- Port to Zig 0.17.0.
+- Nested consumer builds use their own cache and install prefix.
+- The consumer step installs, rather than runs, targets requiring a non-native executor.
 - System mode passes the selected pkg-config include path to header translation, so declarations and library come from one prefix.
-- The consumer step runs only when the host can execute the target; otherwise it installs the consumer without claiming a run.
-- Nested consumer builds relay target, CPU, optimize, linkage, runtime/system mode, local and global caches, prefix, jobs, and caller arguments, including `--provider` through both build stages.
+- The consumer step runs only for native targets; otherwise it installs the consumer.
+- Nested consumer builds relay target, CPU, optimize, linkage, runtime/system mode, jobs, and caller arguments, including `--provider` through both build stages.
 - Fixed Zig 0.16 slice comparisons in `Platform.kind`.
 - NetBSD and OpenBSD header translation now uses the target C preprocessor; macCatalyst uses upstream `LUA_USE_IOS`, so `os.execute` remains unavailable without adding readline.
 - Runtime loading accepts Lua 5.5 providers and rejects LuaJIT 2.1.

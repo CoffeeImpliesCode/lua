@@ -278,14 +278,14 @@ fn preprocessedAggregate(
         run.addArg(triple);
     }
     run.addArgs(&c_flags);
-    if (include_dir) |dir| run.addPrefixedDirectoryArg("-I", dir);
+    if (include_dir) |dir| run.addDirectoryArg2(dir, .{ .prefix = "-I" });
     for (macros) |macro| run.addArg(b.fmt("-D{s}={s}", .{ macro[0], macro[1] }));
     if (dll_macro) run.addArg("-DLUA_BUILD_AS_DLL=1");
     run.addArg("-o");
-    const preprocessed = run.addOutputFileArg("lua-translate.c");
+    const preprocessed = run.addOutputFileArg2("lua-translate.c", .{});
     run.addArg("-MD");
-    _ = run.addPrefixedDepFileOutputArg("-MF", "lua-translate.d");
-    run.addFileArg(b.path(translate_header));
+    _ = run.addDepFileOutputArg2("lua-translate.d", .{ .prefix = "-MF" });
+    run.addFileArg2(b.path(translate_header), .{});
     return preprocessed;
 }
 
@@ -314,9 +314,9 @@ fn artifactName(
 fn addGraph(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
+    optimize: std.lang.Optimize,
     library: Library,
-    linkage: std.builtin.LinkMode,
+    linkage: std.lang.LinkMode,
     runtime_loaded: bool,
     public: bool,
 ) Graph {
@@ -409,8 +409,8 @@ fn addGraph(
 fn add_c_library(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    requested: std.builtin.LinkMode,
+    optimize: std.lang.Optimize,
+    requested: std.lang.LinkMode,
     platform: Platform,
     name: []const u8,
 ) *std.Build.Step.Compile {
@@ -513,8 +513,8 @@ fn setVersionScript(
 fn add_programs(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    linkage: std.builtin.LinkMode,
+    optimize: std.lang.Optimize,
+    linkage: std.lang.LinkMode,
     platform: Platform,
     c_lib: *std.Build.Step.Compile,
     public: bool,
@@ -564,8 +564,8 @@ fn add_programs(
 fn add_program(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    linkage: std.builtin.LinkMode,
+    optimize: std.lang.Optimize,
+    linkage: std.lang.LinkMode,
     platform: Platform,
     c_lib: *std.Build.Step.Compile,
     program: Program,
@@ -626,9 +626,9 @@ fn add_target_check(
     b: *std.Build,
     step: *std.Build.Step,
     query: std.Target.Query,
-    optimize: std.builtin.OptimizeMode,
+    optimize: std.lang.Optimize,
     library: Library,
-    linkage: std.builtin.LinkMode,
+    linkage: std.lang.LinkMode,
     runtime_loaded: bool,
 ) void {
     const cross_target = b.resolveTargetQuery(query);
@@ -678,13 +678,13 @@ fn add_target_check(
 }
 
 /// Builds `consumer/` with the selected target and build options.
-/// Runs it only when an enabled executor can execute the target; otherwise installs it.
+/// Runs the nested consumer only for native targets; otherwise installs it.
 fn runConsumer(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
+    optimize: std.lang.Optimize,
     library: Library,
-    linkage: std.builtin.LinkMode,
+    linkage: std.lang.LinkMode,
     runtime_loaded: bool,
 ) *std.Build.Step.Run {
     const triple = target.query.zigTriple(b.allocator) catch @panic("OOM");
@@ -707,71 +707,41 @@ fn runConsumer(
     run.addArg(b.fmt("-Druntime={s}", .{if (runtime_loaded) "true" else "false"}));
     // Forward resolved system mode; -fsys/-fno-sys are runner flags, not -D options.
     run.addArg(if (library == .system) b.fmt("-fsys={s}", .{lib_name}) else b.fmt("-fno-sys={s}", .{lib_name}));
-    if (b.enable_darling) run.addArg("-fdarling");
-    if (b.enable_qemu) run.addArg("-fqemu");
-    if (b.enable_rosetta) run.addArg("-frosetta");
-    if (b.enable_wasmtime) run.addArg("-fwasmtime");
-    if (b.enable_wine) run.addArg("-fwine");
-    if (b.libc_runtimes_dir) |runtimes| run.addArgs(&.{ "--libc-runtimes", runtimes });
+    run.addThirdPartyEnabledArgDarling(.{ .enabled = "-fdarling" });
+    run.addThirdPartyEnabledArgQemu(.{ .enabled = "-fqemu" });
+    run.addThirdPartyEnabledArgRosetta(.{ .enabled = "-frosetta" });
+    run.addThirdPartyEnabledArgWasmtime(.{ .enabled = "-fwasmtime" });
+    run.addThirdPartyEnabledArgWine(.{ .enabled = "-fwine" });
     // Match the parent build's job count and summary in the nested graph.
     run.addArg("-j8");
     run.addArg("--summary");
     run.addArg("all");
-    if (b.cache_root.path) |cache| {
-        run.addArg("--cache-dir");
-        run.addArg(b.fmt("{s}/consumer", .{cache}));
-    }
-    // Reuse the parent global cache for dependency resolution.
-    if (b.graph.global_cache_root.path) |global_cache| {
-        run.addArg("--global-cache-dir");
-        run.addArg(global_cache);
-    }
-    // Forward the resolved prefix so the nested build does not install inside consumer/.
-    const default_prefix = b.build_root.join(b.allocator, &.{"zig-out"}) catch @panic("OOM");
-    if (!std.mem.eql(u8, b.install_prefix, default_prefix)) {
-        const prefix = if (std.fs.path.isAbsolute(b.install_prefix))
-            b.install_prefix
-        else
-            b.pathJoin(&.{ b.graph.cache.cwd, b.install_prefix });
-        run.addArg("--prefix");
-        run.addArg(prefix);
-    }
     // Forward caller arguments after -- to the consumer executable.
-    if (b.args) |args| {
-        run.addArg("--");
-        run.addArgs(args);
-    }
+    run.addArg("--");
+    run.addPassthruArgs();
     run.has_side_effects = true;
     return run;
 }
 
-/// Uses Zig's external-executor rules to decide whether the selected target can run.
+/// Run the nested consumer only for native targets; 0.17 resolves executor toggles at make time.
 fn hostCanExecute(b: *std.Build, target: std.Build.ResolvedTarget) bool {
     const host = &b.graph.host.result;
     const candidate = &target.result;
     const options: std.zig.system.GetExternalExecutorOptions = .{
-        .allow_darling = b.enable_darling,
-        .allow_qemu = b.enable_qemu,
-        .allow_wasmtime = b.enable_wasmtime,
-        .allow_wine = b.enable_wine,
-        // The consumer uses default libc linkage; QEMU's GNU libc fix needs runtimes.
-        .qemu_fixes_dl = candidate.isGnuLibC() and b.libc_runtimes_dir != null,
+        .host_cpu_arch = host.cpu.arch,
+        .host_os_tag = host.os.tag,
+        .link_mode = .dynamic,
         .link_libc = true,
     };
-    return switch (std.zig.system.getExternalExecutor(b.graph.io, host, candidate, options)) {
-        .native, .rosetta => true,
-        // This arm is reachable only for enabled executors.
-        .wine, .wasmtime, .darling => true,
-        // GNU libc QEMU needs runtimes to execute cross-built binaries.
-        .qemu => !(candidate.isGnuLibC() and b.libc_runtimes_dir == null),
-        // Reject targets without a compatible OS, CPU, or dynamic linker.
-        .bad_dl, .bad_os_or_cpu => false,
+    return switch (std.zig.system.getExternalExecutor(b.graph.io, candidate, options)) {
+        .native => true,
+        .rosetta, .qemu, .wine, .wasmtime, .darling, .bad_dl, .bad_os_or_cpu => false,
     };
 }
 
 /// Writes relocatable `lua.pc` metadata for the selected linkage and platform.
 /// Its `-lm`/`-ldl` flags follow upstream's link requirements.
-fn add_pkg_config(b: *std.Build, platform: Platform, linkage: std.builtin.LinkMode) void {
+fn add_pkg_config(b: *std.Build, platform: Platform, linkage: std.lang.LinkMode) void {
     const files = b.addWriteFiles();
     // Bind the generated file's install step; an unbound step installs nothing.
     const install_pc = b.addInstallFileWithDir(
@@ -854,7 +824,7 @@ pub fn build(b: *std.Build) void {
     const library: Library = if (use_system) .system else .bundled;
 
     const linkage_option = b.option(
-        std.builtin.LinkMode,
+        std.lang.LinkMode,
         "linkage",
         "Deliver the native library as a static archive (the default, and what " ++
             "upstream's own Makefile builds) or as a real shared object with " ++
@@ -866,7 +836,7 @@ pub fn build(b: *std.Build) void {
     );
 
     // Bundled mode defaults to static; system mode defaults to dynamic.
-    const linkage: std.builtin.LinkMode = linkage_option orelse
+    const linkage: std.lang.LinkMode = linkage_option orelse
         (if (library == .system) .dynamic else .static);
 
     // Runtime dispatch is independent of delivered linkage.
@@ -931,7 +901,7 @@ pub fn build(b: *std.Build) void {
     // Keep the smoke step independent of installation.
     const run_example = b.addRunArtifact(example);
     run_example.has_side_effects = true;
-    if (b.args) |args| run_example.addArgs(args);
+    run_example.addPassthruArgs();
     b.step("smoke", "Run the deterministic example program").dependOn(&run_example.step);
 
     // Run the test root; cross-test selects an executor for foreign targets.
@@ -1023,8 +993,8 @@ fn targetHasDynamicLinker(target: std.Build.ResolvedTarget) bool {
 /// Never substitute a static archive for a requested shared object.
 fn deliveredLinkage(
     target: std.Build.ResolvedTarget,
-    requested: std.builtin.LinkMode,
-) std.builtin.LinkMode {
+    requested: std.lang.LinkMode,
+) std.lang.LinkMode {
     if (requested == .dynamic and !targetHasDynamicLinker(target)) {
         // Format the target tag at runtime.
         std.debug.panic(
@@ -1070,7 +1040,7 @@ fn refusalFor(os_tag: std.Target.Os.Tag) ?Refusal {
             \\macro at all - that block is the whole of upstream's configuration
             \\for it, and src/Makefile has no wasm target to copy.
             \\
-            \\Zig 0.16.0's WASI libc has neither arm. Both names are removed
+            \\Zig 0.17.0's WASI libc has neither arm. Both names are removed
             \\rather than deprecated, each behind `#ifdef
             \\__wasilibc_unmodified_upstream /* WASI has no temp directories */`:
             \\lib/libc/include/wasm-wasi-musl/stdio.h:148-154 guards tmpnam,
