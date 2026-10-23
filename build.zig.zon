@@ -1,67 +1,32 @@
 // SPDX-License-Identifier: MIT
 .{
-    // The package id and the name a dependent writes in its dependency map,
-    // and the one registered module: `dep.module("lua")`. All three are `lua`,
-    // and `dep.artifact("lua")` is the same string, which is what makes Zig emit
-    // `liblua.a` - the name a C consumer's `-llua` needs, and upstream's own
-    // (`src/Makefile:35`, `LUA_A= liblua.a`).
+    // Package, dependency, module, and artifact name.
     .name = .lua,
-    // Upstream's own release, read out of `src/lua.h:20-22`
-    // (`LUA_VERSION_MAJOR_N 5`, `LUA_VERSION_MINOR_N 5`,
-    // `LUA_VERSION_RELEASE_N 1`) and out of `README` ("This is Lua 5.5.1,
-    // released on 24 Jul 2026"). This is the version of the C library this
-    // package builds, not a version of the wrapper. `build.zig` compares it
-    // against the same constant read out of the header and refuses to configure
-    // when the two disagree, so this string, the pkg-config `Version:` field and
-    // the shared object's file name cannot describe three different releases.
+    // Lua release version from src/lua.h.
     .version = "5.5.1",
     .fingerprint = 0xd671372b083c0ad3,
     .minimum_zig_version = "0.16.0",
-    // Nothing is fetched: the C library is this repository's own source, and the
-    // facade, tests, example, consumer and runtime table import only what is
-    // compiled here. Lua's own release is the tarball already unpacked into
-    // `src/` and `doc/`.
+    // No fetched dependencies.
     .dependencies = .{},
     .paths = .{
         "build.zig",
         "build.zig.zon",
-        // The cross-test harness profile for this package. It is a file in the
-        // package because it is how this package declares what its
-        // cross-platform gate is: `cross-test` discovers it by name from the
-        // package root, and it is settings only - the standard `zig build test`
-        // step over the full published platform matrix, no target subset and no
-        // host path. Nothing in build.zig reads it.
+        // Cross-test profile settings.
         "cross-test.profile.sh",
-        // zig/root.zig is the typed facade and zig/translate.h the aggregate
-        // translation header. Both travel because a dependent reaches them
-        // through `dep.module("lua")`.
+        // Facade and translation sources.
         "zig",
-        // Upstream's Lua, unmodified: the complete 5.5.1 release source
-        // closure - the 20 units of `CORE_O`, the 12 of `LIB_O`, both program
-        // mains, the five installed headers, every internal header and
-        // `ljumptab.h` - together with the documentation `doc/` and both
-        // upstream `Makefile`s and `README`. The whole directory travels rather
-        // than a hand-picked file list so that the tree a dependent receives is
-        // upstream's tree: nothing here is edited, re-entered or regenerated,
-        // and a build that needed a file not in this closure would have to edit
-        // upstream to get it.
+        // Complete upstream source and documentation trees.
         "src",
         "doc",
         "Makefile",
         "README",
         "tests.zig",
         "smoke.zig",
-        // The separate consumer package: proof that the published module
-        // resolves from a package that did not write it, through a relative
-        // path rather than a fetch.
+        // Separate-package consumer.
         "consumer/build.zig",
         "consumer/build.zig.zon",
         "consumer/src/main.zig",
-        // Upstream's release note, preserved byte for byte as the record it is,
-        // and the licence and provenance records this fork added around it.
-        // Lua's own MIT text is not a standalone file - the tarball has no
-        // `LICENSE` - so `doc/readme.html` and `src/lua.h`, the two files that
-        // carry it, are already in the closure above.
+        // Upstream release note and license/provenance records.
         "README.upstream.md",
         "UPSTREAM.md",
         "UPSTREAM.sha256",
@@ -71,30 +36,15 @@
         "CHANGELOG.md",
         "FORK-NOTES.md",
         "FORK-LICENSE.md",
-        // The provenance script that checks the recorded digests and the exact
-        // upstream file set.
+        // Provenance checker.
         "tools",
-        // The runtime loader core the API role owns, and this library's
-        // generated dispatch and descriptor beside it. It is a dependency of the
-        // published module under `-Druntime`, so a dependent that fetches this
-        // package must receive it; `runtime/graph.zig` is the one place
-        // `createModule` substitutes for `translate.createModule()`.
+        // Runtime loader sources.
         "runtime",
-        // Standalone Nix packaging. `package.nix` is the one source-only
-        // derivation and builds the `.static` and `.dynamic` variants of this
-        // same tree; `flake.nix` exposes them; `devenv.nix`, `devenv.yaml` and
-        // `.envrc` provide the canonical development shell. The lock files
-        // belong to the driver and are absent from this list until they exist:
-        // naming a path that is not there would make `zig fetch` hash a missing
-        // entry.
+        // Nix and devenv entry points.
         "package.nix",
         "flake.nix",
         "devenv.nix",
         "devenv.yaml",
         ".envrc",
-        // .zig-cache/, zig-out/, zig-pkg/, consumer/.zig-cache/ and the Nix
-        // and devenv working-tree artefacts are deliberately absent: build
-        // outputs, a fetched package tree, a `result` symlink and shell state
-        // are not part of a package. See .gitignore.
     },
 }

@@ -1,31 +1,12 @@
-# Source-only package derivation for the Lua SDK.
-#
-# One file, consumed by both flake.nix and devenv.nix, so the two entry points
-# cannot describe different packages. It builds nothing but this repository: the
-# native source is upstream's `src/`, which is the complete Lua 5.5.1 core,
-# standard-library and program closure imported whole from the release tarball,
-# and build.zig owns every compile flag and the whole installed layout. Nothing
-# here restates a C flag, fetches a tarball, reaches into a sibling checkout, or
-# installs an artifact of its own. The one edit it makes is the rpath of the ELF
-# files the build installed: Zig records its own build cache there, and that
-# directory does not exist once a binary is installed.
-#
-# No lock file is written here. `flake.lock` and `devenv.lock` belong to the
-# driver.
-#
+# Source-only derivation shared by flake.nix and devenv.nix.
 # SPDX-License-Identifier: MIT
-# See FORK-LICENSE.md for what that identifier covers, and NOTICE.md for the
-# Lua.org terms that cover everything in src/ and doc/.
+# See FORK-LICENSE.md for covered files and NOTICE.md for Lua.org terms in src/ and doc/.
 
 { lib
 , stdenv
 , zig
 , patchelf
-  # Zig's own `std.builtin.LinkMode` spelling, passed straight through as
-  # `-Dlinkage`. "static" and "dynamic" are two variants of one derivation, and
-  # `""` passes nothing at all so the SDK's own default policy runs unchanged.
-  # Lua's upstream Makefile builds only an archive, so static is this fork's
-  # default and `.shared` is the separate variant.
+  # Static matches upstream; "" defers to build.zig, and dynamic selects shared linkage.
 , linkage ? "static"
 , optimize ? "ReleaseSafe"
 }:
@@ -35,14 +16,7 @@ let
     if builtins.elem linkage [ "" "static" "dynamic" ] then linkage
     else throw "package.nix: linkage must be \"\", \"static\" or \"dynamic\", not ${toString linkage}";
 
-# Everything except build outputs, version control and developer-tool state.
-# Filtering by directory name rather than by an allow list means a file added
-# here later is packaged without editing this file, while `.zig-cache/`,
-# `zig-out/`, `.devenv/`, `.direnv/` and `result` stay out of a published output
-# at any depth, including under consumer/. The upstream manuals, man pages,
-# images and both upstream Makefiles are deliberately kept: they are upstream
-# material with digests in UPSTREAM.sha256, and the audit surface is the whole
-# upstream tree.
+# Exclude VCS and generated state while retaining the complete upstream source tree.
 src = lib.cleanSourceWith {
   src = ./.;
   filter = path: _type:
@@ -59,19 +33,11 @@ src = lib.cleanSourceWith {
     ]);
 };
 
-# patchelf rewrites ELF rpaths and does not read Mach-O, so the rpath
-# normalisation in the install phase exists for ELF targets only, and the tool is
-# a build input exactly where that code runs.
+# Apply the rpath rewrite only to non-Darwin targets; patchelf cannot read Mach-O.
 isElfTarget = !stdenv.hostPlatform.isDarwin;
 in
 
-# These packages build for the compiler's own native target. A cross build here
-# would mean hand-building a libc-suffixed triple that has to track nixpkgs, so
-# this derivation refuses one instead of silently producing a host-architecture
-# library under a foreign name. The comparison is against stdenv's own
-# platforms, which are pure values; `builtins.currentSystem` is not evaluable
-# in a sandbox and is not used. A remote builder is unaffected: this compares
-# build against host, not against any particular machine.
+# Refuse cross builds using stdenv values; builtins.currentSystem is unavailable in the sandbox.
 assert stdenv.buildPlatform.system == stdenv.hostPlatform.system;
 
 stdenv.mkDerivation {
@@ -83,44 +49,27 @@ stdenv.mkDerivation {
   strictDeps = true;
   dontPatch = true;
 
-  # The real work is one `zig build install` in installPhase below. Disabling
-  # configure and build phases keeps the Zig setup hook from running a first,
-  # differently-flagged build of its own; `dontInstall` is deliberately NOT set,
-  # because that is what would disable the real install phase.
+  # Disable configure/build to avoid a differently flagged Zig hook build; keep the real install phase.
   dontConfigure = true;
   dontBuild = true;
 
   nativeBuildInputs = [ zig ] ++ lib.optional isElfTarget patchelf;
 
-  # Lua links against the C library, the C math library and — where the
-  # platform configuration defines LUA_USE_DLOPEN — `dlopen`, which `loadlib.c`
-  # uses to load C modules. On Linux readline is not a link-time dependency at
-  # all: `lua.c` dlopens it at startup when LUA_USE_READLINE is not defined by
-  # the build, and falls back to fgets when it cannot. This is the whole of the
-  # native dependency closure; nothing else is propagated.
+  # Lua needs libc, libm, and dl where upstream enables dlopen; Linux loads readline at runtime.
   propagatedBuildInputs = [ stdenv.cc.libc ];
 
-  # The driver owns every gate for this SDK, and a Nix build is not a
-  # verification receipt. No check phase is declared here rather than a check
-  # phase that runs something smaller than the real gates; the commands that do
-  # verify this package are in README.md and CHANGELOG.md.
+  # Nix does not run checks; package entry points own verification.
   doCheck = false;
   dontUseZigCheck = true;
 
   installPhase = ''
     runHook preInstall
 
-    # Both caches go under the Nix-provided TMPDIR, outside the unpacked source
-    # tree, so a build cannot write into $src and so two parallel derivations
-    # cannot share state. Any caller-supplied cache variables are left alone:
-    # they are the caller's scratch, not this file's to clear.
+    # Keep Zig caches under TMPDIR, outside the source tree and separate per derivation.
     export ZIG_LOCAL_CACHE_DIR="$TMPDIR/zig-local-cache"
     export ZIG_GLOBAL_CACHE_DIR="$TMPDIR/zig-global-cache"
 
-    # build.zig owns the source list, the C flags, the LUA_USE_* platform
-    # configuration, the generated pkg-config file and every installed path.
-    # Declaring any of them here as well would create a second place where they
-    # can disagree with the build graph.
+    # Keep source, compiler, platform, pkg-config, and install rules in build.zig.
     zig build install \
       --prefix "$out" \
       -j"''${NIX_BUILD_CORES:-1}" \
@@ -128,14 +77,8 @@ stdenv.mkDerivation {
       -Dcpu=baseline \
       ${lib.optionalString (requestedLinkage != "") "-Dlinkage=${requestedLinkage}"}
 
-    # Zig records the build cache in the rpath of anything that links a dynamic
-    # artifact it has just built (lib/std/Build/Step/Compile.zig:1192-1199), so
-    # an installed binary names a directory that is gone, and Nix rejects an
-    # installed file that names its build directory at all. Both Zig caches above
-    # are under $TMPDIR, so dropping those entries and no other removes it: the
-    # $ORIGIN/../lib build.zig adds, and every store path a real dependency
-    # needs, stay. Symlinks are resolved first so a soname link is rewritten
-    # through to the object and never replaced by a copy of it.
+    # Drop TMPDIR rpaths (Nix forbids build-path references) but retain other paths.
+    # Resolve symlinks first so patchelf updates installed objects rather than links.
     ${lib.optionalString isElfTarget ''
       for elf in "$out"/bin/* "$out"/lib/*.so*; do
         [ -f "$elf" ] || continue
@@ -158,14 +101,7 @@ stdenv.mkDerivation {
     runHook postInstall
   '';
 
-  # The layout this derivation produces is the build graph's, not this file's:
-  # $out/lib/liblua.a (or liblua.so), $out/include/{lua,luaconf,lualib,
-  # lauxlib}.h plus lua.hpp, $out/lib/pkgconfig/lua.pc, $out/bin/{lua,luac},
-  # $out/share/man/man1/{lua,luac}.1 and $out/share/licenses/lua/ with the
-  # upstream grant and this fork's records. Both variants keep it; only the
-  # artifact kind differs. Nothing is copied or generated by hand here, so
-  # `zig build install --prefix $out` and `nix build` produce one layout by
-  # construction rather than two that have to be kept in agreement.
+  # zig build install owns the output layout and all installed files.
 
   enableParallelBuilding = true;
 
