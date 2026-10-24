@@ -35,12 +35,10 @@ Dynamic delivery requires a target dynamic linker. The build does not substitute
 
 ### `build.zig.zon` dependency
 
-For a local checkout, add:
+Fetch the GitHub release and save it to `build.zig.zon`:
 
-```zig
-.dependencies = .{
-    .lua = .{ .path = "../lua" },
-},
+```sh
+zig fetch --save git+https://github.com/CoffeeImpliesCode/lua#v5.5.1
 ```
 
 ### Module and artifacts
