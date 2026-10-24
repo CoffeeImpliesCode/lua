@@ -102,22 +102,19 @@ pub fn Config(comptime dispatch: type) type {
             }
 
             // Create and close through one provider to test allocation and teardown without leaking.
-            const state = dst.luaL_newstate() orelse return
-                "luaL_newstate returned null, so this provider's allocator could " ++
+            const state = dst.luaL_newstate() orelse return "luaL_newstate returned null, so this provider's allocator could " ++
                 "not satisfy a fresh state";
             defer dst.lua_close(state);
 
             // Lua initializes a new state's stack empty; a mismatch indicates an incompatible state layout.
-            if (dst.lua_gettop(state) != 0) return
-                "a freshly created state is not at stack position zero, so this " ++
+            if (dst.lua_gettop(state) != 0) return "a freshly created state is not at stack position zero, so this " ++
                 "provider's state structure is not the one these headers describe";
 
             // Round-trip an integer beyond `double`'s exact integer range.
             dst.lua_pushinteger(state, wide_integer);
             var isnum: c_int = 0;
             const seen = dst.lua_tointegerx(state, -1, &isnum);
-            if (isnum == 0 or seen != wide_integer) return
-                "lua_Integer is not 64 bits wide in this provider, so the " ++
+            if (isnum == 0 or seen != wide_integer) return "lua_Integer is not 64 bits wide in this provider, so the " ++
                 "integer ABI these headers describe is not the one it provides";
             // `lua_pop` is a macro; call its `lua_settop` expansion directly.
             dst.lua_settop(state, -2);

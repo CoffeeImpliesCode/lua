@@ -138,7 +138,6 @@ fn addNames(
 const routed_import = "c_routed";
 
 /// The generator plans declarations before writing either output.
-
 const Class = enum {
     /// Required exported function, called through a typed wrapper.
     routed_function,
@@ -206,7 +205,7 @@ fn generate(
     options: Options,
 ) Failure!struct { dispatch: []const u8, native: []const u8 } {
     const source_z = try readSentinel(io, arena, options.translate);
-    var tree = try Ast.parse(arena, source_z, .zig);
+    var tree = try Ast.parse(arena, source_z, .{ .mode = .zig });
     defer tree.deinit(arena);
 
     if (tree.errors.len != 0) {
@@ -545,9 +544,7 @@ fn planVariable(
                 const type_last = tree.lastToken(type_node);
                 // Avoid `@TypeOf` on extern constants; it can create a direct link.
                 // Preserve the declared pointer type and its translated nominal types.
-                decl.field_type = tree.source[
-                    tree.tokenStart(type_first)..tree.tokenStart(type_last) + tree.tokenSlice(type_last).len
-                ];
+                decl.field_type = tree.source[tree.tokenStart(type_first) .. tree.tokenStart(type_last) + tree.tokenSlice(type_last).len];
                 decl.address_value = true;
                 return decl;
             }
@@ -589,9 +586,7 @@ fn dataTypeText(
         );
         return error.UnsupportedDeclaration;
     };
-    const text = tree.source[
-        tree.tokenStart(tree.firstToken(type_node))..tree.tokenStart(last)
-    ];
+    const text = tree.source[tree.tokenStart(tree.firstToken(type_node))..tree.tokenStart(last)];
     if (std.mem.indexOfScalar(u8, text, '=') != null) {
         std.debug.print(
             "runtime/generate.zig: extern '{s}' is initialized; an exported object " ++
@@ -1075,7 +1070,6 @@ fn writeIndexArms(
 }
 
 /// Rewrite only Aro's `__root` prologue to import the dispatch.
-
 fn writePatchedNative(arena: std.mem.Allocator, tree: *const Ast, root: ?Decl) Failure![]const u8 {
     var out: Writer.Allocating = .init(arena);
     const w = &out.writer;
